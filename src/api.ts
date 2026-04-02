@@ -20,9 +20,27 @@ export type AppState = {
   exportFields?: ExportFields;
 };
 
-const baseUrl = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5079"
-).replace(/\/+$/, "");
+const resolveBaseUrl = () => {
+
+
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (envBaseUrl) {
+      console.log("Resolving base URL for API requests...");
+    return envBaseUrl;
+  }
+  
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const isLocalhost = host === "localhost" || host === "127.0.0.1";
+    const port = isLocalhost ? 5079 : 8080;
+    console.log(`Resolved base URL: http://${host}:${port}`);
+    return `http://${host}:${port}`;
+  }
+
+  return "http://localhost:5079";
+};
+
+const baseUrl = resolveBaseUrl().replace(/\/+$/, "");
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${baseUrl}${path}`, {
