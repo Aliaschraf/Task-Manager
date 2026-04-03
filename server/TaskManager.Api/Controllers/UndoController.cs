@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskManager.Api.Models;
 using TaskManager.Api.Services;
@@ -6,19 +7,23 @@ namespace TaskManager.Api.Controllers;
 
 [ApiController]
 [Route("api/undo")]
+[Authorize]
 public class UndoController : ControllerBase
 {
     private readonly AppStateService _stateService;
+    private readonly CurrentUserService _currentUser;
 
-    public UndoController(AppStateService stateService)
+    public UndoController(AppStateService stateService, CurrentUserService currentUser)
     {
         _stateService = stateService;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
     public async Task<ActionResult<object>> GetUndoState(CancellationToken cancellationToken)
     {
-        var state = await _stateService.GetStateAsync(cancellationToken);
+        var userId = _currentUser.GetRequiredUserId();
+        var state = await _stateService.GetStateAsync(userId, cancellationToken);
         return Ok(new
         {
             deletedTasks = state.DeletedTasks,
@@ -31,7 +36,9 @@ public class UndoController : ControllerBase
         [FromBody] UndoStateDto undoState,
         CancellationToken cancellationToken)
     {
+        var userId = _currentUser.GetRequiredUserId();
         await _stateService.SaveUndoStateAsync(
+            userId,
             undoState.DeletedTasks,
             undoState.DeletedProjects,
             cancellationToken);

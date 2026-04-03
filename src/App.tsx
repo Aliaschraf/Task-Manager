@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FilterBar from "./components/FilterBar";
 import ListBox from "./components/Listbox";
 import ProjectSidebar from "./components/ProjectSidebar";
@@ -32,9 +32,27 @@ import type {
 } from "./types";
 import useAutoResizeTextarea from "./hooks/useAutoResizeTextarea";
 import type { ExportFieldId, ExportFields } from "./components/ExportDialog";
-import { getAppState, saveAppState } from "./api";
+import AuthPanel from "./components/AuthPanel";
+import {
+  getAppState,
+  getSession,
+  logout,
+  saveAppState,
+  type AuthSession,
+} from "./api";
+
+const defaultExportFields: ExportFields = {
+  projectName: true,
+  projectDescription: true,
+  projectStatus: false,
+  taskStatus: true,
+  taskPriority: true,
+  taskCreated: false,
+};
 
 function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [value, setValue] = useState("");
   const [items, setItems] = useState<Task[]>([]);
   const initialProjectId = useRef(
@@ -75,14 +93,8 @@ function App() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">(
     "idle",
   );
-  const [exportFields, setExportFields] = useState<ExportFields>({
-    projectName: true,
-    projectDescription: true,
-    projectStatus: false,
-    taskStatus: true,
-    taskPriority: true,
-    taskCreated: false,
-  });
+  const [exportFields, setExportFields] =
+    useState<ExportFields>(defaultExportFields);
   const [projectStatusFilters, setProjectStatusFilters] = useState<
     ProjectStatus[]
   >(PROJECT_STATUS_OPTIONS);
@@ -163,6 +175,59 @@ function App() {
       enabled: isDescriptionEditing,
     },
   );
+
+  const resetLocalState = useCallback(() => {
+    initialProjectId.current = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    pendingDeleteIds.current.clear();
+    pendingProjectDeleteIds.current.clear();
+    setItems([]);
+    setProjects([
+      {
+        id: initialProjectId.current,
+        name: "General",
+        color: PROJECT_PALETTE[0],
+        status: "Todo",
+        description: "",
+        isDefault: true,
+      },
+    ]);
+    setActiveProjectId(initialProjectId.current);
+    setProjectSettings({
+      [initialProjectId.current]: createDefaultProjectSettings(),
+    });
+    setDeletedTasks([]);
+    setDeletedProjects([]);
+    setProjectStatusFilters(PROJECT_STATUS_OPTIONS);
+    setIsFocusMode(false);
+    setExportFields(defaultExportFields);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSession = async () => {
+      try {
+        const current = await getSession();
+        if (isMounted) {
+          setSession(current);
+        }
+      } catch {
+        if (isMounted) {
+          setSession(null);
+        }
+      } finally {
+        if (isMounted) {
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    loadSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentProjectId || currentProjectId === activeProjectId) {
@@ -521,6 +586,12 @@ function App() {
     let isMounted = true;
 
     const hydrate = async () => {
+      if (!session) {
+        return;
+      }
+
+      isHydratingRef.current = true;
+
       try {
         const state = await getAppState();
         if (!isMounted) {
@@ -528,6 +599,7 @@ function App() {
         }
 
         if (!state.projects?.length) {
+          resetLocalState();
           return;
         }
 
@@ -576,9 +648,13 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [resetLocalState, session]);
 
   useEffect(() => {
+    if (!session) {
+      return;
+    }
+
     if (isHydratingRef.current) {
       return;
     }
@@ -617,6 +693,7 @@ function App() {
       }
     };
   }, [
+    session,
     activeProjectId,
     deletedProjects,
     deletedTasks,
@@ -1386,6 +1463,37 @@ function App() {
     setIsExportOpen(true);
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Failed to logout", error);
+    } finally {
+      setSession(null);
+      resetLocalState();
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card">
+          <div className="auth-header">
+            <p className="auth-kicker">Task Manager</p>
+            <h1 className="auth-title">Checking your session...</h1>
+            <p className="auth-subtitle">
+              One moment while we load your workspace.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthPanel onSession={setSession} />;
+  }
+
   const handleImportMarkdown = async (file: File) => {
     if (!file) {
       return;
@@ -1728,6 +1836,13 @@ function App() {
                     Add
                   </button>
                 </div>
+                <button
+                  type="button"
+                  className="focus-exit-button"
+                  onClick={handleLogout}
+                >
+                  Sign out
+                </button>
               </div>
             )}
           </div>

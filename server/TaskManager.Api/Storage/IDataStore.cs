@@ -4,7 +4,7 @@ namespace TaskManager.Api.Storage;
 
 public interface IDataStore
 {
-    Task<AppStateDto> GetStateAsync(CancellationToken cancellationToken = default);
+    Task<AppStateDto> GetStateAsync(string userId, CancellationToken cancellationToken = default);
 
-    Task SaveStateAsync(AppStateDto state, CancellationToken cancellationToken = default);
+    Task SaveStateAsync(string userId, AppStateDto state, CancellationToken cancellationToken = default);
 }

@@ -20,6 +20,10 @@ export type AppState = {
   exportFields?: ExportFields;
 };
 
+export type AuthSession = {
+  email: string;
+};
+
 const resolveBaseUrl = () => {
 
 
@@ -48,6 +52,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
+    credentials: "include",
     ...init,
   });
 
@@ -71,4 +76,35 @@ export const saveAppState = (state: AppState) =>
   request<void>("/api/state", {
     method: "PUT",
     body: JSON.stringify(state),
+  });
+
+export const getSession = () => request<AuthSession>("/api/auth/me");
+
+export const register = (email: string, password: string) =>
+  request<AuthSession>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+export const login = (email: string, password: string) =>
+  request<AuthSession>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+export const logout = () =>
+  request<void>("/api/auth/logout", {
+    method: "POST",
+  });
+
+export const requestPasswordReset = (email: string) =>
+  request<{ accepted: boolean; devToken?: string }>("/api/auth/request-reset", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+export const resetPassword = (email: string, token: string, newPassword: string) =>
+  request<void>("/api/auth/reset", {
+    method: "POST",
+    body: JSON.stringify({ email, token, newPassword }),
   });

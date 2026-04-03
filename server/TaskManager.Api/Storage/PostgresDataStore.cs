@@ -7,7 +7,6 @@ namespace TaskManager.Api.Storage;
 
 public class PostgresDataStore : IDataStore
 {
-    private const int StateId = 1;
 
     private readonly AppDbContext _dbContext;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -18,11 +17,11 @@ public class PostgresDataStore : IDataStore
         _jsonOptions = jsonOptions;
     }
 
-    public async Task<AppStateDto> GetStateAsync(CancellationToken cancellationToken = default)
+    public async Task<AppStateDto> GetStateAsync(string userId, CancellationToken cancellationToken = default)
     {
         var entity = await _dbContext.AppStates
             .AsNoTracking()
-            .FirstOrDefaultAsync(state => state.Id == StateId, cancellationToken);
+            .FirstOrDefaultAsync(state => state.UserId == userId, cancellationToken);
 
         if (entity == null || string.IsNullOrWhiteSpace(entity.Json))
         {
@@ -33,18 +32,18 @@ public class PostgresDataStore : IDataStore
         return state ?? new AppStateDto();
     }
 
-    public async Task SaveStateAsync(AppStateDto state, CancellationToken cancellationToken = default)
+    public async Task SaveStateAsync(string userId, AppStateDto state, CancellationToken cancellationToken = default)
     {
         var payload = JsonSerializer.Serialize(state, _jsonOptions);
 
         var entity = await _dbContext.AppStates
-            .FirstOrDefaultAsync(item => item.Id == StateId, cancellationToken);
+            .FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
 
         if (entity == null)
         {
             entity = new AppStateEntity
             {
-                Id = StateId,
+                UserId = userId,
                 Json = payload,
                 UpdatedAt = DateTime.UtcNow,
             };
