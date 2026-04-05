@@ -69,3 +69,9 @@ export type ProjectSettings = {
   sortId: SortId;
   sortDirection: SortDirection;
 };
+
+export type ThemeMode = "light" | "dark";
+
+export type GlobalSettings = {
+  themeMode: ThemeMode;
+};

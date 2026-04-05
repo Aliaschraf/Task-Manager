@@ -30,7 +30,7 @@ function FilterBar({
           style={
             {
               "--filter-color": "var(--accent)",
-              "--filter-bg": "#fff7ed",
+              "--filter-bg": "var(--filter-all-bg)",
             } as CSSProperties
           }
         >

@@ -19,4 +19,6 @@ public class AppStateDto
     public bool IsFocusMode { get; set; }
 
     public ExportFieldsDto? ExportFields { get; set; }
+
+    public GlobalSettingsDto GlobalSettings { get; set; } = new();
 }

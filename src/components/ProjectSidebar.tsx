@@ -8,7 +8,6 @@ type ProjectSidebarProps = {
   projects: Project[];
   totalProjects: number;
   activeProjectId: string;
-  isFocusMode: boolean;
   isExportDisabled: boolean;
   projectCounts: Record<string, number>;
   statusOptions: ProjectStatus[];
@@ -26,7 +25,6 @@ type ProjectSidebarProps = {
   onToggleStatus: (status: ProjectStatus) => void;
   onToggleAll: () => void;
   onStatusChange: (projectId: string, status: ProjectStatus) => void;
-  onToggleFocusMode: () => void;
   onExport: () => void;
   onImport: (file: File) => void;
 };
@@ -35,7 +33,6 @@ function ProjectSidebar({
   projects,
   totalProjects,
   activeProjectId,
-  isFocusMode,
   isExportDisabled,
   projectCounts,
   statusOptions,
@@ -49,7 +46,6 @@ function ProjectSidebar({
   onToggleStatus,
   onToggleAll,
   onStatusChange,
-  onToggleFocusMode,
   onExport,
   onImport,
 }: ProjectSidebarProps) {
@@ -77,10 +73,6 @@ function ProjectSidebar({
   };
 
   const isAllSelected = statusFilters.length === statusOptions.length;
-  const sidebarProjects = isFocusMode
-    ? projects.filter((project) => project.id === activeProjectId)
-    : projects;
-
   const shouldIgnoreDragStart = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
       return false;
@@ -197,7 +189,6 @@ function ProjectSidebar({
         <div>
           <div className="project-sidebar-title-row">
             <h2 className="project-sidebar-title">Projects</h2>
-            {isFocusMode && <span className="project-focus-badge">Focus</span>}
           </div>
           <p className="project-sidebar-subtitle">{totalProjects} total</p>
         </div>
@@ -214,18 +205,6 @@ function ProjectSidebar({
           </button>
           {isMenuOpen && (
             <div className="project-actions-menu" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                className="project-actions-item"
-                onClick={() => {
-                  onToggleFocusMode();
-                  setIsMenuOpen(false);
-                }}
-                aria-pressed={isFocusMode}
-              >
-                {isFocusMode ? "Focus: On" : "Focus mode"}
-              </button>
               <button
                 type="button"
                 role="menuitem"
@@ -353,7 +332,7 @@ function ProjectSidebar({
           lastReorderRef.current = null;
         }}
       >
-        {sidebarProjects.map((project) => {
+        {projects.map((project) => {
           const isActive = project.id === activeProjectId;
           const count = projectCounts[project.id] ?? 0;
           const canDelete = totalProjects > 1;

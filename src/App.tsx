@@ -15,10 +15,12 @@ import {
   STATUS_COLOR_POOL,
   SORT_OPTIONS,
   createDefaultProjectSettings,
+  DEFAULT_GLOBAL_SETTINGS,
 } from "./constants";
 import type {
   DeletedProject,
   DeletedTask,
+  GlobalSettings,
   Project,
   ProjectSettings,
   ProjectStatus,
@@ -99,6 +101,10 @@ function App() {
     ProjectStatus[]
   >(PROJECT_STATUS_OPTIONS);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(
+    DEFAULT_GLOBAL_SETTINGS,
+  );
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const pendingDeleteIds = useRef(new Set<string>());
   const pendingProjectDeleteIds = useRef(new Set<string>());
   const isHydratingRef = useRef(true);
@@ -199,8 +205,16 @@ function App() {
     setDeletedProjects([]);
     setProjectStatusFilters(PROJECT_STATUS_OPTIONS);
     setIsFocusMode(false);
+    setGlobalSettings(DEFAULT_GLOBAL_SETTINGS);
     setExportFields(defaultExportFields);
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.dataset.theme = globalSettings.themeMode;
+  }, [globalSettings.themeMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -626,6 +640,7 @@ function App() {
             : PROJECT_STATUS_OPTIONS,
         );
         setIsFocusMode(Boolean(state.isFocusMode));
+        setGlobalSettings(state.globalSettings ?? DEFAULT_GLOBAL_SETTINGS);
         if (state.exportFields) {
           setExportFields(state.exportFields);
         }
@@ -678,6 +693,7 @@ function App() {
       activeProjectId,
       projectStatusFilters,
       isFocusMode,
+      globalSettings,
       exportFields,
     };
 
@@ -698,6 +714,7 @@ function App() {
     deletedProjects,
     deletedTasks,
     exportFields,
+    globalSettings,
     isFocusMode,
     items,
     projectSettings,
@@ -1474,6 +1491,18 @@ function App() {
     }
   };
 
+  const handleToggleThemeMode = () => {
+    setGlobalSettings((prev) => ({
+      ...prev,
+      themeMode: prev.themeMode === "light" ? "dark" : "light",
+    }));
+  };
+
+  const handleLogoutAndClose = async () => {
+    await handleLogout();
+    setIsSettingsOpen(false);
+  };
+
   if (authLoading) {
     return (
       <div className="auth-shell">
@@ -1545,347 +1574,446 @@ function App() {
 
   return (
     <div className="app-page">
-      <div className={`app-shell${isFocusMode ? " app-shell--focus" : ""}`}>
+      <div className="app-layout">
         {!isFocusMode && (
-          <ProjectSidebar
-            projects={visibleProjects}
-            totalProjects={projects.length}
-            activeProjectId={currentProjectId}
-            isFocusMode={isFocusMode}
-            projectCounts={projectCounts}
-            onSelect={setActiveProjectId}
-            onCreate={handleCreateProject}
-            onDelete={handleDeleteProject}
-            onReorder={handleReorderProject}
-            onColorChange={handleColorChange}
-            statusOptions={PROJECT_STATUS_OPTIONS}
-            statusFilters={projectStatusFilters}
-            statusCounts={projectStatusCounts}
-            onToggleStatus={handleToggleProjectStatus}
-            onToggleAll={handleToggleAllProjectStatuses}
-            onStatusChange={handleProjectStatusChange}
-            onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
-            onExport={handleExportOpen}
-            onImport={handleImportMarkdown}
-            isExportDisabled={sortedItems.length === 0}
-          />
+          <header className="app-header">
+            <div>
+              <p className="app-header-kicker">Task Manager</p>
+              <h1 className="app-header-title">Projects & tasks</h1>
+              <p className="app-header-subtitle">
+                Keep your work organized across every project.
+              </p>
+            </div>
+            <div className="app-header-actions">
+              <button
+                type="button"
+                className="app-header-button"
+                onClick={() => setIsFocusMode(true)}
+              >
+                Focus mode
+              </button>
+              <button
+                type="button"
+                className="app-header-button"
+                onClick={() => setIsSettingsOpen(true)}
+              >
+                Settings
+              </button>
+            </div>
+          </header>
         )}
-        <div className="app-card">
-          <div className="app-title-row">
-            <div className="app-title-group">
-              {isTitleEditing ? (
-                <textarea
-                  ref={titleTextareaRef}
-                  className="listbox-textarea app-title-textarea"
-                  value={titleDraft}
-                  onChange={(event) => {
-                    setTitleDraft(event.target.value);
-                    resizeTitleTextarea();
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      commitTitleEdit();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      commitTitleEdit();
-                    }
-                  }}
-                  onBlur={commitTitleEdit}
-                  aria-label="Rename project"
-                  rows={1}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="listbox-text-button app-title-button"
-                  onClick={beginTitleEdit}
-                >
-                  <span className="app-title">
-                    {activeProject?.name ?? "Task List"}
-                  </span>
-                </button>
-              )}
-            </div>
-            {isFocusMode && (
-              <button
-                type="button"
-                className="focus-exit-button"
-                onClick={() => setIsFocusMode(false)}
-              >
-                Show projects
-              </button>
-            )}
-          </div>
-          {(isDescriptionEditing || descriptionDraft.trim()) && (
-            <div className="app-description-row">
-              {isDescriptionEditing ? (
-                <textarea
-                  ref={descriptionTextareaRef}
-                  className="listbox-textarea app-description-textarea"
-                  value={descriptionDraft}
-                  onChange={(event) => {
-                    setDescriptionDraft(event.target.value);
-                    resizeDescriptionTextarea();
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      commitDescriptionEdit();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      commitDescriptionEdit();
-                    }
-                  }}
-                  onBlur={commitDescriptionEdit}
-                  aria-label="Project description"
-                  rows={2}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="listbox-text-button app-description-button"
-                  onClick={beginDescriptionEdit}
-                >
-                  <span className="app-description-text">
-                    {descriptionDraft}
-                  </span>
-                </button>
-              )}
-            </div>
+        <div className={`app-shell${isFocusMode ? " app-shell--focus" : ""}`}>
+          {!isFocusMode && (
+            <ProjectSidebar
+              projects={visibleProjects}
+              totalProjects={projects.length}
+              activeProjectId={currentProjectId}
+              projectCounts={projectCounts}
+              onSelect={setActiveProjectId}
+              onCreate={handleCreateProject}
+              onDelete={handleDeleteProject}
+              onReorder={handleReorderProject}
+              onColorChange={handleColorChange}
+              statusOptions={PROJECT_STATUS_OPTIONS}
+              statusFilters={projectStatusFilters}
+              statusCounts={projectStatusCounts}
+              onToggleStatus={handleToggleProjectStatus}
+              onToggleAll={handleToggleAllProjectStatuses}
+              onStatusChange={handleProjectStatusChange}
+              onExport={handleExportOpen}
+              onImport={handleImportMarkdown}
+              isExportDisabled={sortedItems.length === 0}
+            />
           )}
-          {!isDescriptionEditing && !descriptionDraft.trim() && (
-            <div className="app-description-add-row">
-              <button
-                type="button"
-                className="app-description-add"
-                onClick={beginDescriptionEdit}
-              >
-                Add a project description
-              </button>
-            </div>
-          )}
-          <SortBar
-            sortOptions={sortOptions}
-            sortId={sortId}
-            sortDirection={sortDirection}
-            activeSort={activeSort}
-            onSortChange={handleSortChange}
-            onToggleDirection={handleSortDirectionToggle}
-          />
-          <div className="status-panel">
-            <div className="status-panel-header">
-              <span className="status-panel-title">Task statuses</span>
-              <button
-                type="button"
-                className={`status-panel-switch${
-                  isStatusEditMode ? " is-on" : ""
-                }`}
-                onClick={() => setIsStatusEditMode((prev) => !prev)}
-                aria-pressed={isStatusEditMode}
-                aria-checked={isStatusEditMode}
-                role="switch"
-                aria-label={`Status mode: ${
-                  isStatusEditMode ? "Edit" : "Filter"
-                }`}
-              >
-                <span className="status-panel-switch-track">
-                  <span className="status-panel-switch-thumb" />
-                </span>
-                <span className="status-panel-switch-label">
-                  {isStatusEditMode ? "Editing" : "Filtering"}
-                </span>
-              </button>
-            </div>
-            {!isStatusEditMode ? (
-              <FilterBar
-                statusOptions={statusOptions}
-                statusFilters={statusFilters}
-                isAllSelected={isAllSelected}
-                totalCount={totalCount}
-                statusCounts={statusCounts}
-                onToggleAll={handleToggleAll}
-                onToggleStatus={handleToggleStatus}
-              />
-            ) : (
-              <div className="status-panel-editor">
-                <ul
-                  ref={statusListRef}
-                  className="status-edit-list"
-                  onDragOver={(event) => {
-                    if (!draggingStatusId) {
-                      return;
-                    }
-                    event.preventDefault();
-
-                    const closest = getClosestStatusTarget(event.clientY);
-                    if (!closest || closest.id === draggingStatusId) {
-                      return;
-                    }
-
-                    const reorderKey = `${draggingStatusId}:${closest.id}:${closest.position}`;
-                    if (lastStatusReorderRef.current === reorderKey) {
-                      return;
-                    }
-                    lastStatusReorderRef.current = reorderKey;
-                    handleReorderStatus(
-                      draggingStatusId,
-                      closest.id,
-                      closest.position,
-                    );
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    lastStatusReorderRef.current = null;
-                  }}
-                >
-                  {statusOptions.map((status) => (
-                    <li
-                      key={status.id}
-                      data-status-id={status.id}
-                      draggable
-                      className={`status-edit-row${
-                        draggingStatusId === status.id ? " is-dragging" : ""
-                      }`}
-                      onDragStart={(event) => {
-                        if (shouldIgnoreStatusDrag(event.target)) {
-                          event.preventDefault();
-                          return;
-                        }
-                        event.dataTransfer.setData("text/plain", status.id);
-                        event.dataTransfer.effectAllowed = "move";
-                        setDraggingStatusId(status.id);
-                      }}
-                      onDragEnd={() => {
-                        setDraggingStatusId(null);
-                        lastStatusReorderRef.current = null;
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="status-drag-handle"
-                        aria-label="Drag to reorder"
-                        title="Drag to reorder"
-                      >
-                        ::
-                      </button>
-                      <span className="status-edit-label">{status.label}</span>
-                      <div className="status-color-controls">
-                        <label className="status-color">
-                          <span className="status-color-text">Text</span>
-                          <input
-                            type="color"
-                            value={status.textColor}
-                            onChange={(event) =>
-                              handleUpdateStatusColor(
-                                status.id,
-                                "textColor",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="status-color">
-                          <span className="status-color-text">Bg</span>
-                          <input
-                            type="color"
-                            value={status.backgroundColor}
-                            onChange={(event) =>
-                              handleUpdateStatusColor(
-                                status.id,
-                                "backgroundColor",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        className="task-status-remove"
-                        onClick={() => handleRemoveStatus(status.id)}
-                        aria-label={`Remove ${status.label}`}
-                        disabled={statusOptions.length <= 1}
-                      >
-                        x
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="task-status-add">
-                  <input
-                    className="task-status-input"
-                    value={statusDraft}
-                    onChange={(event) => setStatusDraft(event.target.value)}
+          <div className="app-card">
+            <div className="app-title-row">
+              <div className="app-title-group">
+                {isTitleEditing ? (
+                  <textarea
+                    ref={titleTextareaRef}
+                    className="listbox-textarea app-title-textarea"
+                    value={titleDraft}
+                    onChange={(event) => {
+                      setTitleDraft(event.target.value);
+                      resizeTitleTextarea();
+                    }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") {
+                      if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
-                        handleAddStatus();
+                        commitTitleEdit();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        commitTitleEdit();
                       }
                     }}
-                    placeholder="Add status"
-                    aria-label="Add task status"
+                    onBlur={commitTitleEdit}
+                    aria-label="Rename project"
+                    rows={1}
                   />
+                ) : (
                   <button
                     type="button"
-                    className="task-status-add-button"
-                    onClick={handleAddStatus}
+                    className="listbox-text-button app-title-button"
+                    onClick={beginTitleEdit}
                   >
-                    Add
+                    <span className="app-title">
+                      {activeProject?.name ?? "Task List"}
+                    </span>
                   </button>
-                </div>
+                )}
+              </div>
+              <div className="app-title-actions">
+                {isFocusMode && (
+                  <button
+                    type="button"
+                    className="focus-exit-button"
+                    onClick={() => setIsFocusMode(false)}
+                  >
+                    Show projects
+                  </button>
+                )}
+              </div>
+            </div>
+            {(isDescriptionEditing || descriptionDraft.trim()) && (
+              <div className="app-description-row">
+                {isDescriptionEditing ? (
+                  <textarea
+                    ref={descriptionTextareaRef}
+                    className="listbox-textarea app-description-textarea"
+                    value={descriptionDraft}
+                    onChange={(event) => {
+                      setDescriptionDraft(event.target.value);
+                      resizeDescriptionTextarea();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        commitDescriptionEdit();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        commitDescriptionEdit();
+                      }
+                    }}
+                    onBlur={commitDescriptionEdit}
+                    aria-label="Project description"
+                    rows={2}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="listbox-text-button app-description-button"
+                    onClick={beginDescriptionEdit}
+                  >
+                    <span className="app-description-text">
+                      {descriptionDraft}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+            {!isDescriptionEditing && !descriptionDraft.trim() && (
+              <div className="app-description-add-row">
                 <button
                   type="button"
-                  className="focus-exit-button"
-                  onClick={handleLogout}
+                  className="app-description-add"
+                  onClick={beginDescriptionEdit}
                 >
-                  Sign out
+                  Add a project description
                 </button>
               </div>
             )}
-          </div>
-          <TextBox
-            value={value}
-            onChange={setValue}
-            onEnter={handleEnter}
-            placeholder={"Type a task and press Enter to add it"}
-          />
-          <ListBox
-            items={sortedItems}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onDelete={handleDelete}
-            onEdit={handleEdit}
-            priorityOptions={PRIORITY_OPTIONS}
-            statusOptions={statusOptions}
-          />
-          {(deletedTasks.length > 0 || deletedProjects.length > 0) && (
-            <div className="undo-toast-stack" aria-live="polite">
-              <ProjectUndoToastStack
-                deletedProjects={deletedProjects}
-                onUndo={handleUndoProjectDelete}
-              />
-              <UndoToastStack
-                deletedTasks={deletedTasks}
-                onUndo={handleUndoDelete}
-              />
+            <SortBar
+              sortOptions={sortOptions}
+              sortId={sortId}
+              sortDirection={sortDirection}
+              activeSort={activeSort}
+              onSortChange={handleSortChange}
+              onToggleDirection={handleSortDirectionToggle}
+            />
+            <div className="status-panel">
+              <div className="status-panel-header">
+                <span className="status-panel-title">Task statuses</span>
+                <button
+                  type="button"
+                  className={`status-panel-switch${
+                    isStatusEditMode ? " is-on" : ""
+                  }`}
+                  onClick={() => setIsStatusEditMode((prev) => !prev)}
+                  aria-pressed={isStatusEditMode}
+                  aria-checked={isStatusEditMode}
+                  role="switch"
+                  aria-label={`Status mode: ${
+                    isStatusEditMode ? "Edit" : "Filter"
+                  }`}
+                >
+                  <span className="status-panel-switch-track">
+                    <span className="status-panel-switch-thumb" />
+                  </span>
+                  <span className="status-panel-switch-label">
+                    {isStatusEditMode ? "Editing" : "Filtering"}
+                  </span>
+                </button>
+              </div>
+              {!isStatusEditMode ? (
+                <FilterBar
+                  statusOptions={statusOptions}
+                  statusFilters={statusFilters}
+                  isAllSelected={isAllSelected}
+                  totalCount={totalCount}
+                  statusCounts={statusCounts}
+                  onToggleAll={handleToggleAll}
+                  onToggleStatus={handleToggleStatus}
+                />
+              ) : (
+                <div className="status-panel-editor">
+                  <ul
+                    ref={statusListRef}
+                    className="status-edit-list"
+                    onDragOver={(event) => {
+                      if (!draggingStatusId) {
+                        return;
+                      }
+                      event.preventDefault();
+
+                      const closest = getClosestStatusTarget(event.clientY);
+                      if (!closest || closest.id === draggingStatusId) {
+                        return;
+                      }
+
+                      const reorderKey = `${draggingStatusId}:${closest.id}:${closest.position}`;
+                      if (lastStatusReorderRef.current === reorderKey) {
+                        return;
+                      }
+                      lastStatusReorderRef.current = reorderKey;
+                      handleReorderStatus(
+                        draggingStatusId,
+                        closest.id,
+                        closest.position,
+                      );
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      lastStatusReorderRef.current = null;
+                    }}
+                  >
+                    {statusOptions.map((status) => (
+                      <li
+                        key={status.id}
+                        data-status-id={status.id}
+                        draggable
+                        className={`status-edit-row${
+                          draggingStatusId === status.id ? " is-dragging" : ""
+                        }`}
+                        onDragStart={(event) => {
+                          if (shouldIgnoreStatusDrag(event.target)) {
+                            event.preventDefault();
+                            return;
+                          }
+                          event.dataTransfer.setData("text/plain", status.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          setDraggingStatusId(status.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingStatusId(null);
+                          lastStatusReorderRef.current = null;
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="status-drag-handle"
+                          aria-label="Drag to reorder"
+                          title="Drag to reorder"
+                        >
+                          ::
+                        </button>
+                        <span className="status-edit-label">
+                          {status.label}
+                        </span>
+                        <div className="status-color-controls">
+                          <label className="status-color">
+                            <span className="status-color-text">Text</span>
+                            <input
+                              type="color"
+                              value={status.textColor}
+                              onChange={(event) =>
+                                handleUpdateStatusColor(
+                                  status.id,
+                                  "textColor",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label className="status-color">
+                            <span className="status-color-text">Bg</span>
+                            <input
+                              type="color"
+                              value={status.backgroundColor}
+                              onChange={(event) =>
+                                handleUpdateStatusColor(
+                                  status.id,
+                                  "backgroundColor",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          className="task-status-remove"
+                          onClick={() => handleRemoveStatus(status.id)}
+                          aria-label={`Remove ${status.label}`}
+                          disabled={statusOptions.length <= 1}
+                        >
+                          x
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="task-status-add">
+                    <input
+                      className="task-status-input"
+                      value={statusDraft}
+                      onChange={(event) => setStatusDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleAddStatus();
+                        }
+                      }}
+                      placeholder="Add status"
+                      aria-label="Add task status"
+                    />
+                    <button
+                      type="button"
+                      className="task-status-add-button"
+                      onClick={handleAddStatus}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          <ExportDialog
-            isOpen={isExportOpen}
-            onClose={() => setIsExportOpen(false)}
-            onExport={handleExportMarkdown}
-            onCopy={handleCopyMarkdown}
-            fields={exportFields}
-            onToggleField={handleToggleExportField}
-            isExportDisabled={sortedItems.length === 0}
-            copyStatus={copyStatus}
-            previewMarkdown={buildMarkdown()}
-          />
+            <TextBox
+              value={value}
+              onChange={setValue}
+              onEnter={handleEnter}
+              placeholder={"Type a task and press Enter to add it"}
+            />
+            <ListBox
+              items={sortedItems}
+              onStatusChange={handleStatusChange}
+              onPriorityChange={handlePriorityChange}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
+              priorityOptions={PRIORITY_OPTIONS}
+              statusOptions={statusOptions}
+            />
+            {(deletedTasks.length > 0 || deletedProjects.length > 0) && (
+              <div className="undo-toast-stack" aria-live="polite">
+                <ProjectUndoToastStack
+                  deletedProjects={deletedProjects}
+                  onUndo={handleUndoProjectDelete}
+                />
+                <UndoToastStack
+                  deletedTasks={deletedTasks}
+                  onUndo={handleUndoDelete}
+                />
+              </div>
+            )}
+            <ExportDialog
+              isOpen={isExportOpen}
+              onClose={() => setIsExportOpen(false)}
+              onExport={handleExportMarkdown}
+              onCopy={handleCopyMarkdown}
+              fields={exportFields}
+              onToggleField={handleToggleExportField}
+              isExportDisabled={sortedItems.length === 0}
+              copyStatus={copyStatus}
+              previewMarkdown={buildMarkdown()}
+            />
+          </div>
         </div>
       </div>
+      {isSettingsOpen && (
+        <div
+          className="settings-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsSettingsOpen(false)}
+        >
+          <div
+            className="settings-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="settings-modal-header">
+              <div>
+                <p className="settings-kicker">Preferences</p>
+                <h2 className="settings-title">App settings</h2>
+                <p className="settings-subtitle">
+                  Switch themes and manage your session.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="settings-close"
+                onClick={() => setIsSettingsOpen(false)}
+                aria-label="Close settings"
+              >
+                x
+              </button>
+            </div>
+            <div className="settings-section">
+              <div className="settings-row">
+                <div>
+                  <span className="settings-label">Dark mode</span>
+                  <span className="settings-hint">
+                    Switch between light and dark theme.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`settings-toggle${
+                    globalSettings.themeMode === "dark" ? " is-on" : ""
+                  }`}
+                  onClick={handleToggleThemeMode}
+                  aria-pressed={globalSettings.themeMode === "dark"}
+                  aria-checked={globalSettings.themeMode === "dark"}
+                  role="switch"
+                >
+                  <span className="settings-toggle-track">
+                    <span className="settings-toggle-thumb" />
+                  </span>
+                  <span className="settings-toggle-label">
+                    {globalSettings.themeMode === "dark" ? "On" : "Off"}
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className="settings-section settings-section--danger">
+              <div className="settings-row">
+                <div>
+                  <span className="settings-label">Log out</span>
+                  <span className="settings-hint">
+                    Sign out of your current session.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="settings-logout"
+                  onClick={handleLogoutAndClose}
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

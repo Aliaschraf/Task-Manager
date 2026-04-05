@@ -1,6 +1,7 @@
 import type {
   DeletedProject,
   DeletedTask,
+  GlobalSettings,
   Project,
   ProjectSettings,
   ProjectStatus,
@@ -18,6 +19,7 @@ export type AppState = {
   projectStatusFilters: ProjectStatus[];
   isFocusMode: boolean;
   exportFields?: ExportFields;
+  globalSettings?: GlobalSettings;
 };
 
 export type AuthSession = {
@@ -25,11 +27,8 @@ export type AuthSession = {
 };
 
 const resolveBaseUrl = () => {
-
-
   const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
   if (envBaseUrl) {
-      console.log("Resolving base URL for API requests...");
     return envBaseUrl;
   }
   
@@ -37,7 +36,6 @@ const resolveBaseUrl = () => {
     const host = window.location.hostname;
     const isLocalhost = host === "localhost" || host === "127.0.0.1";
     const port = isLocalhost ? 5079 : 8080;
-    console.log(`Resolved base URL: http://${host}:${port}`);
     return `http://${host}:${port}`;
   }
 

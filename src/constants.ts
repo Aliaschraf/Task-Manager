@@ -1,4 +1,5 @@
 import type {
+  GlobalSettings,
   ProjectSettings,
   ProjectStatus,
   SortOption,
@@ -132,3 +133,7 @@ export const createDefaultProjectSettings = (): ProjectSettings => ({
   sortId: "flow",
   sortDirection: "desc",
 });
+
+export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
+  themeMode: "light",
+};
