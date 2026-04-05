@@ -7,9 +7,7 @@ import {
   type AuthSession,
 } from "../api";
 
-const modes = ["login", "register", "request", "reset"] as const;
-
-type Mode = (typeof modes)[number];
+type Mode = "login" | "register" | "request" | "reset";
 
 type AuthPanelProps = {
   onSession: (session: AuthSession) => void;

@@ -60,10 +60,6 @@ function ListBox({
     exitEdit();
   };
 
-  const cancelEdit = () => {
-    exitEdit();
-  };
-
   return (
     <ul className="listbox">
       {items.length === 0 ? (
@@ -82,7 +78,6 @@ function ListBox({
           onStartEdit={startEdit}
           onDraftChange={setDraft}
           onCommitEdit={commitEdit}
-          onCancelEdit={cancelEdit}
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
           onBeginHoldDelete={(event, task) => beginHold(event, task.id)}

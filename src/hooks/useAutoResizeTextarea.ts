@@ -3,7 +3,6 @@ import type { RefObject } from "react";
 
 type AutoResizeOptions = {
   enabled?: boolean;
-  deps?: unknown[];
 };
 
 const resizeTextarea = (ref: RefObject<HTMLTextAreaElement | null>) => {
@@ -20,7 +19,7 @@ const useAutoResizeTextarea = (
   value: string,
   options?: AutoResizeOptions,
 ) => {
-  const { enabled = true, deps = [] } = options ?? {};
+  const { enabled = true } = options ?? {};
 
   const resize = useCallback(() => resizeTextarea(ref), [ref]);
 
@@ -29,7 +28,7 @@ const useAutoResizeTextarea = (
       return;
     }
     resize();
-  }, [enabled, resize, value, ...deps]);
+  }, [enabled, resize, value]);
 
   return resize;
 };

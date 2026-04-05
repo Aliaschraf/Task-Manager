@@ -118,7 +118,7 @@ function ProjectSidebar({
     return closest;
   };
 
-  const getMarkdownFile = (files: FileList | null) => {
+  const getMarkdownFile = (files: ArrayLike<File> | null) => {
     if (!files || files.length === 0) {
       return null;
     }
@@ -143,9 +143,7 @@ function ProjectSidebar({
       (entry) => entry.kind === "file",
     );
     const file = item?.getAsFile() ?? null;
-    return file && getMarkdownFile({ 0: file, length: 1, item: () => file })
-      ? file
-      : null;
+    return file && getMarkdownFile([file]) ? file : null;
   };
 
   return (

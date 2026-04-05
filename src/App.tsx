@@ -8,11 +8,24 @@ import ProjectUndoToastStack from "./components/ProjectUndoToastStack";
 import UndoToastStack from "./components/UndoToastStack";
 import ExportDialog from "./components/ExportDialog";
 import {
+  buildMarkdownFilename,
+  buildProjectMarkdown,
+  parseImportedMarkdown,
+} from "./features/projects/markdown";
+import {
+  createStatusOption,
+  findStatusByLabel,
+  getDefaultStatusId,
+  mergeStatusOptions,
+  normalizeStatusOptions,
+  cloneDefaultStatusOptions,
+} from "./features/tasks/statusOptions";
+import { sortTasks } from "./features/tasks/sorting";
+import {
   DEFAULT_TASK_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   PROJECT_PALETTE,
   PROJECT_STATUS_OPTIONS,
-  STATUS_COLOR_POOL,
   SORT_OPTIONS,
   createDefaultProjectSettings,
   DEFAULT_GLOBAL_SETTINGS,
@@ -24,7 +37,6 @@ import type {
   Project,
   ProjectSettings,
   ProjectStatus,
-  SortDirection,
   SortId,
   SortOption,
   Task,
@@ -42,6 +54,7 @@ import {
   saveAppState,
   type AuthSession,
 } from "./api";
+import { createEntityId, createToastId } from "./utils/id";
 
 const defaultExportFields: ExportFields = {
   projectName: true,
@@ -57,9 +70,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [value, setValue] = useState("");
   const [items, setItems] = useState<Task[]>([]);
-  const initialProjectId = useRef(
-    `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  );
+  const initialProjectId = useRef(createEntityId());
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -183,7 +194,7 @@ function App() {
   );
 
   const resetLocalState = useCallback(() => {
-    initialProjectId.current = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    initialProjectId.current = createEntityId();
     pendingDeleteIds.current.clear();
     pendingProjectDeleteIds.current.clear();
     setItems([]);
@@ -344,16 +355,6 @@ function App() {
     [activeItems, isAllSelected, statusFilters],
   );
 
-  const statusOrder = useMemo(
-    () => new Map(statusOptions.map((status, index) => [status.id, index])),
-    [statusOptions],
-  );
-  const priorityOrder: Record<TaskPriority, number> = {
-    Low: 1,
-    Medium: 2,
-    High: 3,
-  };
-
   const sortOptions: SortOption[] = SORT_OPTIONS;
 
   const activeSort = useMemo(
@@ -361,189 +362,13 @@ function App() {
     [sortId, sortOptions],
   );
 
-  const compareBy = (
-    a: Task,
-    b: Task,
-    compareFns: Array<(left: Task, right: Task) => number>,
-  ) => {
-    for (const compareFn of compareFns) {
-      const result = compareFn(a, b);
-      if (result !== 0) {
-        return result;
-      }
-    }
-    return 0;
-  };
-
-  const directionFactor = sortDirection === "asc" ? 1 : -1;
-
   const sortedItems = useMemo(
-    () =>
-      filteredItems
-        .map((item, index) => ({ item, index }))
-        .sort((a, b) => {
-          let result = 0;
-          switch (sortId) {
-            case "flow":
-              result = compareBy(a.item, b.item, [
-                (left, right) =>
-                  (statusOrder.get(left.status) ?? 0) -
-                  (statusOrder.get(right.status) ?? 0),
-                (left, right) =>
-                  priorityOrder[right.priority] - priorityOrder[left.priority],
-                (left, right) => right.createdAt - left.createdAt,
-              ]);
-              break;
-            case "priority":
-              result =
-                directionFactor *
-                (priorityOrder[a.item.priority] -
-                  priorityOrder[b.item.priority]);
-              break;
-            case "created":
-              result = directionFactor * (a.item.createdAt - b.item.createdAt);
-              break;
-            case "title":
-              result =
-                directionFactor *
-                a.item.text.localeCompare(b.item.text, undefined, {
-                  sensitivity: "base",
-                });
-              break;
-            case "status":
-              result =
-                directionFactor *
-                ((statusOrder.get(a.item.status) ?? 0) -
-                  (statusOrder.get(b.item.status) ?? 0));
-              break;
-            default:
-              result = 0;
-          }
-
-          return result === 0 ? a.index - b.index : result;
-        })
-        .map((entry) => entry.item),
-    [directionFactor, filteredItems, priorityOrder, sortId, statusOrder],
+    () => sortTasks(filteredItems, sortId, sortDirection, statusOptions),
+    [filteredItems, sortDirection, sortId, statusOptions],
   );
 
-  const cloneDefaultStatusOptions = () =>
-    DEFAULT_TASK_STATUS_OPTIONS.map((option) => ({ ...option }));
-
-  const getDefaultStatusId = (options: TaskStatusOption[]) =>
-    options.find((status) => status.label.toLowerCase() === "todo")?.id ??
-    options[0]?.id ??
-    "todo";
-
-  const findStatusByLabel = (options: TaskStatusOption[], label: string) =>
-    options.find(
-      (status) => status.label.toLowerCase() === label.toLowerCase(),
-    );
-
-  const buildStatusId = (
-    label: string,
-    existing: TaskStatusOption[],
-  ): string => {
-    const base =
-      label
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") || "status";
-    const existingIds = new Set(existing.map((option) => option.id));
-    if (!existingIds.has(base)) {
-      return base;
-    }
-
-    let index = 2;
-    while (existingIds.has(`${base}-${index}`)) {
-      index += 1;
-    }
-    return `${base}-${index}`;
-  };
-
-  const pickRandomStatusColors = (existing: TaskStatusOption[]) => {
-    const used = new Set(
-      existing.map((option) => `${option.textColor}|${option.backgroundColor}`),
-    );
-    const available = STATUS_COLOR_POOL.filter(
-      (entry) => !used.has(`${entry.textColor}|${entry.backgroundColor}`),
-    );
-    const pool = available.length ? available : STATUS_COLOR_POOL;
-    return pool[Math.floor(Math.random() * pool.length)];
-  };
-
-  const getDefaultColorsForLabel = (
-    label: string,
-    existing: TaskStatusOption[],
-  ) => {
-    const match = DEFAULT_TASK_STATUS_OPTIONS.find(
-      (option) => option.label.toLowerCase() === label.toLowerCase(),
-    );
-
-    if (match) {
-      return {
-        textColor: match.textColor,
-        backgroundColor: match.backgroundColor,
-      };
-    }
-
-    return pickRandomStatusColors(existing);
-  };
-
-  const createStatusOption = (
-    label: string,
-    existing: TaskStatusOption[],
-  ): TaskStatusOption => {
-    const colors = getDefaultColorsForLabel(label, existing);
-    return {
-      id: buildStatusId(label, existing),
-      label: label.trim(),
-      textColor: colors.textColor,
-      backgroundColor: colors.backgroundColor,
-    };
-  };
-
-  const normalizeStatusOptions = (options: TaskStatusOption[]) => {
-    const next: TaskStatusOption[] = [];
-    const seen = new Set<string>();
-
-    options.forEach((option) => {
-      const label = option.label.trim();
-      if (!label) {
-        return;
-      }
-
-      if (seen.has(option.id)) {
-        return;
-      }
-
-      seen.add(option.id);
-      next.push({ ...option, label });
-    });
-
-    return next.length ? next : cloneDefaultStatusOptions();
-  };
-
-  const mergeStatusOptions = (base: TaskStatusOption[], incoming: string[]) => {
-    const next = [...base.map((option) => ({ ...option }))];
-
-    incoming.forEach((label) => {
-      if (!label.trim()) {
-        return;
-      }
-
-      if (findStatusByLabel(next, label)) {
-        return;
-      }
-
-      next.push(createStatusOption(label, next));
-    });
-
-    return normalizeStatusOptions(next);
-  };
-
   const createTask = (text: string): Task => ({
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: createEntityId(),
     text,
     status: getDefaultStatusId(statusOptions),
     priority: "Low",
@@ -552,7 +377,7 @@ function App() {
   });
 
   const createProject = (name: string): Project => ({
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: createEntityId(),
     name,
     color: PROJECT_PALETTE[projects.length % PROJECT_PALETTE.length],
     status: "Todo",
@@ -763,7 +588,7 @@ function App() {
       const next = prev.filter((item) => item.id !== id);
       pendingDeleteIds.current.add(id);
 
-      const toastId = `${removedTask.id}-${Date.now()}`;
+      const toastId = createToastId(removedTask.id);
       const timeoutId = window.setTimeout(() => {
         setDeletedTasks((prev) => prev.filter((entry) => entry.id !== toastId));
         pendingDeleteIds.current.delete(removedTask.id);
@@ -1058,11 +883,6 @@ function App() {
     setIsTitleEditing(false);
   };
 
-  const cancelTitleEdit = () => {
-    setIsTitleEditing(false);
-    setTitleDraft(activeProject?.name ?? "");
-  };
-
   const beginDescriptionEdit = () => {
     if (!activeProject) {
       return;
@@ -1085,11 +905,6 @@ function App() {
       ),
     );
     setIsDescriptionEditing(false);
-  };
-
-  const cancelDescriptionEdit = () => {
-    setIsDescriptionEditing(false);
-    setDescriptionDraft(activeProject?.description ?? "");
   };
 
   const handleDeleteProject = (projectId: string) => {
@@ -1119,7 +934,7 @@ function App() {
     const deletedProjectTasks = items.filter(
       (item) => item.projectId === projectId,
     );
-    const toastId = `${projectId}-${Date.now()}`;
+    const toastId = createToastId(projectId);
     pendingProjectDeleteIds.current.add(projectId);
 
     setProjects((prev) => prev.filter((project) => project.id !== projectId));
@@ -1271,173 +1086,30 @@ function App() {
     setExportFields((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const formatCreatedDate = (timestamp: number) =>
-    new Date(timestamp).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-
-  const parseImportedMarkdown = (content: string) => {
-    const lines = content.split(/\r?\n/);
-    const firstLine = lines.find((line) => line.trim().length > 0) ?? "";
-    const headingMatch = firstLine.match(/^#+\s+(.*)$/);
-    const projectName = headingMatch?.[1]?.trim() || "Imported Project";
-
-    let projectStatus: ProjectStatus | null = null;
-    const statusLine = lines.find((line) => line.startsWith("**Status:**"));
-    if (statusLine) {
-      const rawStatus = statusLine.replace("**Status:**", "").trim();
-      projectStatus =
-        PROJECT_STATUS_OPTIONS.find(
-          (status) => status.toLowerCase() === rawStatus.toLowerCase(),
-        ) ?? null;
-    }
-
-    let description = "";
-    const descriptionIndex = lines.findIndex(
-      (line) => line.trim() === "## Description",
-    );
-    if (descriptionIndex !== -1) {
-      const descriptionLines: string[] = [];
-      for (let i = descriptionIndex + 1; i < lines.length; i += 1) {
-        const line = lines[i];
-        if (line.trim().startsWith("## ") || line.trim().startsWith("# ")) {
-          break;
-        }
-        descriptionLines.push(line);
-      }
-      description = descriptionLines.join("\n").trim();
-    }
-
-    const tasks: Array<{
-      text: string;
-      statusLabel: string;
-      priority: TaskPriority;
-      createdAt: number;
-    }> = [];
-
-    const tasksIndex = lines.findIndex((line) => line.trim() === "## Tasks");
-    if (tasksIndex !== -1) {
-      for (let i = tasksIndex + 1; i < lines.length; i += 1) {
-        const line = lines[i].trim();
-        if (!line.startsWith("- ")) {
-          continue;
-        }
-
-        const itemText = line.slice(2).trim();
-        if (!itemText) {
-          continue;
-        }
-
-        const match = itemText.match(/^(.*?)(?:\s*\(([^)]+)\))?$/);
-        const text = match?.[1]?.trim() ?? itemText;
-        const detailText = match?.[2] ?? "";
-        const details = detailText.split(" | ").map((part) => part.trim());
-
-        let statusLabel = "Todo";
-        let priority: TaskPriority = "Low";
-        let createdAt = Date.now();
-
-        details.forEach((detail) => {
-          if (detail.startsWith("Status:")) {
-            const raw = detail.replace("Status:", "").trim();
-            statusLabel = raw || statusLabel;
-          }
-          if (detail.startsWith("Priority:")) {
-            const raw = detail.replace("Priority:", "").trim();
-            const mapped = PRIORITY_OPTIONS.find(
-              (option) => option.toLowerCase() === raw.toLowerCase(),
-            );
-            if (mapped) {
-              priority = mapped;
-            }
-          }
-          if (detail.startsWith("Created:")) {
-            const raw = detail.replace("Created:", "").trim();
-            const parsed = Date.parse(raw);
-            if (!Number.isNaN(parsed)) {
-              createdAt = parsed;
-            }
-          }
-        });
-
-        tasks.push({ text, statusLabel, priority, createdAt });
-      }
-    }
-
-    return { projectName, projectStatus, description, tasks };
-  };
-
-  const buildMarkdown = () => {
-    if (!activeProject) {
-      return "";
-    }
-
-    const lines: string[] = [];
-    const heading = exportFields.projectName
-      ? activeProject.name
-      : "Task Export";
-    lines.push(`# ${heading}`);
-
-    if (exportFields.projectStatus) {
-      lines.push("");
-      lines.push(`**Status:** ${activeProject.status}`);
-    }
-
-    const description = activeProject.description?.trim();
-    if (exportFields.projectDescription && description) {
-      lines.push("");
-      lines.push("## Description");
-      lines.push(description);
-    }
-
-    lines.push("");
-    lines.push("## Tasks");
-
-    if (sortedItems.length === 0) {
-      lines.push("- No tasks available.");
-      return lines.join("\n");
-    }
-
-    sortedItems.forEach((item) => {
-      const details: string[] = [];
-      if (exportFields.taskStatus) {
-        const label = statusOptionMap.get(item.status)?.label ?? item.status;
-        details.push(`Status: ${label}`);
-      }
-      if (exportFields.taskPriority) {
-        details.push(`Priority: ${item.priority}`);
-      }
-      if (exportFields.taskCreated) {
-        details.push(`Created: ${formatCreatedDate(item.createdAt)}`);
-      }
-
-      const suffix = details.length ? ` (${details.join(" | ")})` : "";
-      lines.push(`- ${item.text}${suffix}`);
-    });
-
-    return lines.join("\n");
-  };
+  const markdownPreview = useMemo(
+    () =>
+      buildProjectMarkdown({
+        activeProject,
+        sortedItems,
+        statusOptionMap,
+        exportFields,
+      }),
+    [activeProject, exportFields, sortedItems, statusOptionMap],
+  );
 
   const handleExportMarkdown = () => {
-    const markdown = buildMarkdown();
-    if (!markdown) {
+    if (!markdownPreview) {
       return;
     }
 
-    const baseName = exportFields.projectName
-      ? (activeProject?.name ?? "tasks")
-      : "tasks";
-    const normalized = baseName
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    const filename = `${normalized || "tasks"}-${dateStamp}.md`;
+    const filename = buildMarkdownFilename(
+      activeProject?.name,
+      exportFields.projectName,
+    );
 
-    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([markdownPreview], {
+      type: "text/markdown;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1450,17 +1122,16 @@ function App() {
   };
 
   const handleCopyMarkdown = async () => {
-    const markdown = buildMarkdown();
-    if (!markdown) {
+    if (!markdownPreview) {
       return;
     }
 
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(markdown);
+        await navigator.clipboard.writeText(markdownPreview);
       } else {
         const textarea = document.createElement("textarea");
-        textarea.value = markdown;
+        textarea.value = markdownPreview;
         textarea.setAttribute("readonly", "true");
         textarea.style.position = "absolute";
         textarea.style.left = "-9999px";
@@ -1556,7 +1227,7 @@ function App() {
       setItems((prev) => [
         ...prev,
         ...tasks.map((task) => ({
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          id: createEntityId(),
           text: task.text,
           status:
             findStatusByLabel(importedStatusOptions, task.statusLabel)?.id ??
@@ -1934,7 +1605,7 @@ function App() {
               onToggleField={handleToggleExportField}
               isExportDisabled={sortedItems.length === 0}
               copyStatus={copyStatus}
-              previewMarkdown={buildMarkdown()}
+              previewMarkdown={markdownPreview}
             />
           </div>
         </div>

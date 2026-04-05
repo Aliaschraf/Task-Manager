@@ -19,7 +19,6 @@ type TaskItemProps = {
   onStartEdit: (item: Task) => void;
   onDraftChange: (value: string) => void;
   onCommitEdit: (item: Task) => void;
-  onCancelEdit: () => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onPriorityChange: (id: string, priority: TaskPriority) => void;
   onBeginHoldDelete: (
@@ -40,7 +39,6 @@ function TaskItem({
   onStartEdit,
   onDraftChange,
   onCommitEdit,
-  onCancelEdit,
   onStatusChange,
   onPriorityChange,
   onBeginHoldDelete,
