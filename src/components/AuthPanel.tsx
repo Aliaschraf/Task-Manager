@@ -108,6 +108,31 @@ export default function AuthPanel({ onSession }: AuthPanelProps) {
     }
   };
 
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (isWorking) {
+      return;
+    }
+
+    if (mode === "login") {
+      await handleLogin();
+      return;
+    }
+
+    if (mode === "register") {
+      await handleRegister();
+      return;
+    }
+
+    if (mode === "request") {
+      await handleRequestReset();
+      return;
+    }
+
+    await handleResetPassword();
+  };
+
   return (
     <div className="auth-shell">
       <div className="auth-card">
@@ -127,7 +152,7 @@ export default function AuthPanel({ onSession }: AuthPanelProps) {
           </p>
         </div>
 
-        <div className="auth-form">
+        <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span>Email</span>
             <input
@@ -174,39 +199,27 @@ export default function AuthPanel({ onSession }: AuthPanelProps) {
 
           <div className="auth-actions">
             {mode === "login" && (
-              <button type="button" onClick={handleLogin} disabled={isWorking}>
+              <button type="submit" disabled={isWorking}>
                 Sign in
               </button>
             )}
             {mode === "register" && (
-              <button
-                type="button"
-                onClick={handleRegister}
-                disabled={isWorking}
-              >
+              <button type="submit" disabled={isWorking}>
                 Create account
               </button>
             )}
             {mode === "request" && (
-              <button
-                type="button"
-                onClick={handleRequestReset}
-                disabled={isWorking}
-              >
+              <button type="submit" disabled={isWorking}>
                 Send reset link
               </button>
             )}
             {mode === "reset" && (
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                disabled={isWorking}
-              >
+              <button type="submit" disabled={isWorking}>
                 Update password
               </button>
             )}
           </div>
-        </div>
+        </form>
 
         <div className="auth-footer">
           {mode === "login" && (
