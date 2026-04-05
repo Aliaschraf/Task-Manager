@@ -137,8 +137,40 @@
   color: color-mix(in srgb, var(--status-done) 70%, var(--ink));
 }
 
+[data-theme="dark"] .priority-select {
+  background: var(--surface-soft);
+  color: var(--ink);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+[data-theme="dark"] .priority-select--low {
+  border-color: #475569;
+  background: #1f2937;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .priority-select--medium {
+  border-color: #a16207;
+  background: #3f2d16;
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .priority-select--high {
+  border-color: #be123c;
+  background: #3f1d27;
+  color: #fda4af;
+}
+
 * {
   box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  min-width: 0;
 }
 
 body {
@@ -281,7 +313,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 16px;
+}
+
+.project-sidebar-header > div:first-child {
+  min-width: 0;
 }
 
 .project-sidebar-title-row {
@@ -1051,6 +1088,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1062,6 +1100,7 @@ body {
   font-weight: 600;
   background: var(--surface);
   color: var(--muted);
+  max-width: 100%;
 }
 
 .project-status-select--backlog {
@@ -1149,6 +1188,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
 }
 
 .project-icon-button {
@@ -1177,6 +1217,13 @@ body {
 
 .project-drag-handle:active {
   cursor: grabbing;
+}
+
+.project-drag-handle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 .project-drag-handle:hover {
@@ -2199,6 +2246,9 @@ body {
   justify-content: center;
   cursor: pointer;
   position: relative;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   transition: border-color 150ms ease, background 150ms ease,
     box-shadow 150ms ease, transform 150ms ease;
 }
@@ -2503,7 +2553,8 @@ body {
 
 .auth-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -2515,8 +2566,30 @@ body {
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+  min-width: 0;
 }
 
 .auth-link:hover {
   text-decoration: underline;
+}
+
+.status-drag-handle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (pointer: coarse) {
+  .project-dropzone {
+    display: none;
+  }
+
+  .project-drag-handle:hover,
+  .delete-button:hover,
+  .sort-option--active,
+  .export-trigger:hover,
+  .focus-exit-button:hover,
+  .app-header-button:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }

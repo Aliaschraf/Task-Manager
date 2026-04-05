@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Project, ProjectStatus } from "../types";
 import { HOLD_DURATION_MS, STATUS_CLASS_MAP } from "../constants";
@@ -62,6 +62,18 @@ function ProjectSidebar({
       holdDurationMs: HOLD_DURATION_MS,
       onComplete: onDelete,
     });
+
+  const supportsDesktopDnD = useMemo(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    const hasTouch =
+      navigator.maxTouchPoints > 0 ||
+      "ontouchstart" in window ||
+      window.matchMedia?.("(pointer: coarse)").matches;
+    return !hasTouch;
+  }, []);
 
   const handleCreate = () => {
     const trimmed = draftName.trim();
@@ -150,11 +162,17 @@ function ProjectSidebar({
     <aside
       className={`project-sidebar${draggingId ? " project-sidebar--dragging" : ""}`}
       onDragEnter={(event) => {
+        if (!supportsDesktopDnD) {
+          return;
+        }
         if (event.dataTransfer?.types.includes("Files")) {
           setIsDropActive(true);
         }
       }}
       onDragOver={(event) => {
+        if (!supportsDesktopDnD) {
+          return;
+        }
         if (event.dataTransfer?.types.includes("Files")) {
           event.preventDefault();
           event.dataTransfer.dropEffect = "copy";
@@ -169,6 +187,9 @@ function ProjectSidebar({
       }}
       onDragEnd={() => setIsDropActive(false)}
       onDrop={(event) => {
+        if (!supportsDesktopDnD) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         setIsDropActive(false);
@@ -308,6 +329,9 @@ function ProjectSidebar({
         ref={listRef}
         className="project-list"
         onDragOver={(event) => {
+          if (!supportsDesktopDnD) {
+            return;
+          }
           if (!draggingId) {
             return;
           }
@@ -326,6 +350,9 @@ function ProjectSidebar({
           onReorder(draggingId, closest.id, closest.position);
         }}
         onDrop={(event) => {
+          if (!supportsDesktopDnD) {
+            return;
+          }
           event.preventDefault();
           lastReorderRef.current = null;
         }}
@@ -339,11 +366,15 @@ function ProjectSidebar({
             <li
               key={project.id}
               data-project-id={project.id}
-              draggable
+              draggable={supportsDesktopDnD}
               className={`project-item${isActive ? " project-item--active" : ""}${
                 isDragging ? " project-item--dragging" : ""
               }${isDragging && !isActive ? " project-item--dragging-inactive" : ""}`}
               onDragStart={(event) => {
+                if (!supportsDesktopDnD) {
+                  event.preventDefault();
+                  return;
+                }
                 if (shouldIgnoreDragStart(event.target)) {
                   event.preventDefault();
                   return;
@@ -409,8 +440,17 @@ function ProjectSidebar({
                       type="button"
                       className="project-icon-button project-drag-handle"
                       data-no-drag
-                      aria-label="Drag to reorder"
-                      title="Drag to reorder"
+                      aria-label={
+                        supportsDesktopDnD
+                          ? "Drag to reorder"
+                          : "Reorder available on desktop"
+                      }
+                      title={
+                        supportsDesktopDnD
+                          ? "Drag to reorder"
+                          : "Reorder available on desktop"
+                      }
+                      disabled={!supportsDesktopDnD}
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
@@ -436,6 +476,8 @@ function ProjectSidebar({
                       }
                       onPointerUp={endHold}
                       onPointerCancel={endHold}
+                      onPointerLeave={endHold}
+                      onLostPointerCapture={endHold}
                       aria-label={`Hold to delete ${project.name}`}
                       title={canDelete ? "Hold to delete" : "Cannot delete"}
                       disabled={!canDelete}

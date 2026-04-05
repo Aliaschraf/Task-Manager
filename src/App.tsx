@@ -127,6 +127,17 @@ function App() {
       "",
     [activeProjectId, projects],
   );
+  const supportsDesktopDnD = useMemo(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    const hasTouch =
+      navigator.maxTouchPoints > 0 ||
+      "ontouchstart" in window ||
+      window.matchMedia?.("(pointer: coarse)").matches;
+    return !hasTouch;
+  }, []);
   const visibleProjects = useMemo(
     () =>
       projects.filter((project) =>
@@ -1443,6 +1454,9 @@ function App() {
                     ref={statusListRef}
                     className="status-edit-list"
                     onDragOver={(event) => {
+                      if (!supportsDesktopDnD) {
+                        return;
+                      }
                       if (!draggingStatusId) {
                         return;
                       }
@@ -1465,6 +1479,9 @@ function App() {
                       );
                     }}
                     onDrop={(event) => {
+                      if (!supportsDesktopDnD) {
+                        return;
+                      }
                       event.preventDefault();
                       lastStatusReorderRef.current = null;
                     }}
@@ -1473,11 +1490,15 @@ function App() {
                       <li
                         key={status.id}
                         data-status-id={status.id}
-                        draggable
+                        draggable={supportsDesktopDnD}
                         className={`status-edit-row${
                           draggingStatusId === status.id ? " is-dragging" : ""
                         }`}
                         onDragStart={(event) => {
+                          if (!supportsDesktopDnD) {
+                            event.preventDefault();
+                            return;
+                          }
                           if (shouldIgnoreStatusDrag(event.target)) {
                             event.preventDefault();
                             return;
@@ -1494,8 +1515,17 @@ function App() {
                         <button
                           type="button"
                           className="status-drag-handle"
-                          aria-label="Drag to reorder"
-                          title="Drag to reorder"
+                          aria-label={
+                            supportsDesktopDnD
+                              ? "Drag to reorder"
+                              : "Reorder available on desktop"
+                          }
+                          title={
+                            supportsDesktopDnD
+                              ? "Drag to reorder"
+                              : "Reorder available on desktop"
+                          }
+                          disabled={!supportsDesktopDnD}
                         >
                           ::
                         </button>

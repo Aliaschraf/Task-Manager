@@ -35,10 +35,19 @@ const useHoldToDelete = <T extends HTMLElement>({
 
   const beginHold = useCallback(
     (event: PointerEvent<T>, id: string) => {
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
+
+      stopHold();
       const target = event.currentTarget;
       const pointerId = event.pointerId;
 
-      target.setPointerCapture(pointerId);
+      try {
+        target.setPointerCapture(pointerId);
+      } catch {
+        // Some browsers may refuse capture in edge timing cases.
+      }
       setHoldingId(id);
       setHoldProgress(0);
       holdStartRef.current = performance.now();
@@ -52,7 +61,7 @@ const useHoldToDelete = <T extends HTMLElement>({
         setHoldProgress(progress);
 
         if (progress >= 1) {
-          if (target.hasPointerCapture(pointerId)) {
+          if (target.hasPointerCapture?.(pointerId)) {
             target.releasePointerCapture(pointerId);
           }
           onComplete(id);
@@ -71,7 +80,7 @@ const useHoldToDelete = <T extends HTMLElement>({
   const endHold = useCallback(
     (event: PointerEvent<T>) => {
       const target = event.currentTarget;
-      if (target.hasPointerCapture(event.pointerId)) {
+      if (target.hasPointerCapture?.(event.pointerId)) {
         target.releasePointerCapture(event.pointerId);
       }
       stopHold();
